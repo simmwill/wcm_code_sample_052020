@@ -1,28 +1,25 @@
-# wcm_code_sample_052020
+# Code sample: Programmer Analyst I
 
-## Generic Project Directory
+## Description
 
-This is a generic project template. It might help to add a brief description.
+#### Purpose
 
-When the project has been created, I recommend running
+Sample code for Programmer Analyst I role with Weill Cornell Medicine's Division of Biostatistics (Department of Population Health Sciences). 
 
-```usethis::use_github(private = TRUE, protocol = "https")```
+#### Background on code
 
-to create a private remote repo corresponding to this project. If this project
-is edited across multiple machines, it may be necessary to add symbolic links
-to data directories using
+This is modified code from an in-preparation manuscript. I am solely responsible for the creation of this code and analytic method, but other researchers on this study - other members of the National Birth Defects Prevention Study (NBDPS) - are as follows: Stingone J, Luben T, Sheridan S, Langlois P, Shaw G, Reefhuis J, Romitti P, Feldkamp M, Nembhard W, Browne M, Lin S. Organizational consent from NBDPS/CDC has been granted to use this code in its modified state.
 
-```ln -s PATH/TO/DATA data```
+The purpose of these analyses is to produce exploratory, descriptive, and analytic results related to the joint effects of maternal exposure to PM2.5 (fine particulate matter) and extreme heat events (EHE) on risk of certain offspring congenital heart defects (CHDs).
+
+#### Background on starting dataset
+
+The starting dataset was provided by researchers at the New York NBDPS site. It includes CHD cases and controls with estimated dates of delivery from 1997-2007. It also includes PM2.5 and temperature data, matched to each mother by geocode. There	are a number of extraneous variables in the dataset.
 
 ## Structure
 
-* `analysis/` is intended to contain all the source R Markdown files that
-implement the analyses for the project.
-* `data/` will either be a symbolic link to an external data directory, or
-a subdirectory
-* `drafts/` will contain all references and relevant paper drafts
-* `results/` will contain results exported by the analysis files
-* `source/` will contain bare scripts (typically containing functions sourced
-by the full analysis files)
+* `code/` contains my relevant **sample code** in an RMarkdown file (`wcm_code_sample_052020.Rmd`).
+* `data/` (not shown here) was established as a symbolic link to an external folder. Data for these analyses contain PHI and are not shareable.
+* `results/` contains a knitted HTML file of **results**, complete with formatting and visualizations (`wcm_code_sample_052020.html`).
 
-project structured using the [projectr](https://github.com/jeff-goldsmith/projectr) package.
+Project modified from structure created using the [projectr](https://github.com/jeff-goldsmith/projectr) package.
