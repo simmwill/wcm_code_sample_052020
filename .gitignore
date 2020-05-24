@@ -9,3 +9,6 @@ data
 analysis/*_cache/
 .RData
 .Ruserdata
+
+## notes
+notes

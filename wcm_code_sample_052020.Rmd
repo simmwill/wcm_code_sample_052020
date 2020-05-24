@@ -1,0 +1,169 @@
+---
+title: "Code Sample: Programmer Analyst I Role, WCM"
+author: "Will Simmons"
+date: "May 2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+### 0.  Description
+
+#### 0.1  Purpose
+
+Sample code for Programmer Analyst I role with Weill Cornell Medicine's Division of Biostatistics (Department of Population Health Sciences). 
+
+#### 0.2  Background on code
+
+This is modified code from an in-preparation manuscript. I am solely responsible for the creation of this code and analytic method, but other researchers on this study - other members of the National Birth Defects Prevention Study (NBDPS) - are as follows: Stingone J, Luben T, Sheridan S, Langlois P, Shaw G, Reefhuis J, Romitti P, Feldkamp M, Nembhard W, Browne M, Lin S. Organizational consent from NBDPS/CDC has been granted to use this code in its modified state.
+
+The purpose of our analyses are to produce exploratory, descriptive, and analytic results related to the joint effects of maternal exposure to PM2.5 (fine particulate matter) and extreme heat events (EHE) on risk of certain offspring congenital heart defects (CHDs).
+
+#### 0.3  Background on starting dataset
+
+The starting dataset was provided by researchers at the New York NBDPS site. It includes CHD cases and controls with estimated dates of delivery from 1997-2007. It also includes PM2.5 and temperature data, matched to each mother by geocode. There	are a number of extraneous variables in the dataset.
+
+### 1.  Setup
+
+<!-- #### 1.0  Package Import -->
+
+```{r setup, include=FALSE}
+
+# Data import and management
+library(tidyverse)
+
+# # Table creation
+# library(knitr)
+# library(kableExtra)
+# library(gtsummary)
+# library(gt)
+# library(Hmisc)
+# 
+# # Models and output management
+# library(broom)
+# library(mgcv)
+# library(purrr)
+# library(patchwork)
+# library(readr)
+# 
+# # Conflicting functions - setting default packages to use
+# library(conflicted)
+# conflict_prefer("html", "gt")
+# conflict_prefer("summarize", "dplyr")
+# conflict_prefer("filter", "dplyr")
+
+# Disable scientific notation for output
+# options(scipen = 999)
+
+# Global options for knitting document and ggplot options
+knitr::opts_chunk$set(
+  fig.width = 8,
+  fig.asp = .6,
+  out.width = "90%"
+)
+
+theme_set(
+  theme_bw() +
+  theme(legend.position = "bottom")
+) 
+
+```
+
+#### 1.1  Data Import and Cleaning
+
+Here, I'll import the data used by my mentor to publish her 2019 study. 
+
+```{r data_import}
+
+# NOTE: ./data/ in this .Rproj is set up as a symbolic link to an unshared external data folder (data contain PHI)
+
+ny_data = 
+  haven::read_sas("./data/ny_data_2019.sas7bdat") %>%   # Starting dataset from NY NBDPS center - import from SAS format
+  janitor::clean_names()
+
+```
+
+#### 1.2  Data Tidying and Manipulation
+
+Most of this code is subsetting the original dataset of 6,000 columns into a more manageable dataset of the 16 variables I'll use for analysis. I had to wrangle the original code in creating one of my exposure variables, though. Since the original dataset contained separate indicator variables representing extreme heat on each day of a mother's pregnancy, I used `pivot_longer()` and `summarize()` to create a sum of heat days experienced by a mother during the cardiac critical period of her pregnancy (weeks 3-8, or days 15-56).
+
+The data contain PHI, so I'll modify my study data for these purposes by permuting categorical counfounding variables and adding random noise to the numeric PM2.5 measurement. This was requested by NBDPS and will further protect participants.
+
+```{r data_import}
+
+# Creating exposure data for each ID: sum of >90th percentile heat days 15-56 (weeks 3-8 of pregnancy)
+heat_days =
+  ny_data %>% 
+  select(
+    matches("^tmax_p90_"),  # Selects all relevant tmax indicator variables and puts at front - these cols were mixed in with UATmax
+    everything()
+  ) %>%
+  pivot_longer(
+    cols = tmax_p90_15:tmax_p90_56,  # Tidying data into long format to sum range of days for each ID
+    names_prefix = "tmax_p90_",
+    names_to = "preg_day",
+    values_to = "heat_90_ind"
+  ) %>% 
+  group_by(id) %>%  # Group by mother's unique identifier
+  summarize(
+    heat_days_90 = sum(heat_90_ind)  
+  ) %>% 
+  ungroup() %>% 
+  mutate_all(
+    ~as.factor(.)  # Coercing ID and heat days into factors 
+  )
+
+# Creating study dataset - selecting relevant columns from the original 6000 in full data
+study_data =  
+  ny_data %>% 
+  select(
+    id,
+    pm25mean,  # PM2.5 exposure variable already created         
+    lvoto, rvoto_noebstein, conotruncal, vsdpm, asd2, septal,  # CHDs of interest
+    mean_dp,  # Mean dewpoint (degrees C)
+    gender = c_gender,  # 1 [male], 2 [female], -3 [not stated], -4 [missing]
+    age_cat = catage_c,  # 0 [<= 19], 1 [20-34 inclusive], 2 [> 34]
+    race_cat = matrace,  # 0 [white non-Hisp], 1 [Black non-Hisp], 2 [Hisp], 3 [others: API, AK Native, Nat Am, other]
+    educ_cat = mat_educ,  # 0 [> grade 12], 1 [<= grade 12]
+    preg_hotseason,  # 0 [no days of gestational wks. 3-8 during spring/summer], 1 [1+ day]
+    loc_id  # Transformed into US state below
+  ) %>% 
+  mutate(
+    state = case_when(     
+      loc_id == 10 ~ 'AR',
+      loc_id == 11 ~ 'CA',
+      loc_id == 12 ~ 'IA',
+      loc_id == 15 ~ 'NY',
+      loc_id == 16 ~ 'TX',
+      loc_id == 17 ~ 'GA', 
+      loc_id == 18 ~ 'NC',
+      loc_id == 19 ~ 'UT')
+  ) %>% 
+  select(-loc_id) %>% 
+  mutate_at(
+    vars(-pm25mean, -mean_dp),
+    ~as.factor(.)  # Coercing variables into factors where appropriate (all but numeric vars PM2.5, dewpoint)
+  ) %>% 
+  inner_join(  # Joining with heat day exposure variable df created above
+    heat_days,
+    by = "id"
+  ) %>% 
+  select(id, heat_days_90, everything())  # Reordering to put exposures first
+
+# Adding random noise to confounding variables and PM2.5 (requested by NBDPS)
+set.seed(1)
+study_data_mod =
+  study_data %>% 
+  mutate_at(
+    vars(11:16),
+    funs(. <- sample(., replace = FALSE))  # Replaces columns 10:16 with random samples without replacement (use <-)
+  ) %>%
+  mutate(
+    pm25mean = pm25mean + rnorm(length(pm25mean), 0, 1)  # Adds Gaussian random noise to PM2.5 variable
+  )
+  
+```
+
+### 2.  Exploration
+
+
