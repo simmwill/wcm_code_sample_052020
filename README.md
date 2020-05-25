@@ -20,7 +20,7 @@ The starting dataset was provided by researchers at the New York NBDPS site. It 
 
 * `code/` contains my relevant **sample code** in an RMarkdown file (`wcm_code_sample_052020.Rmd`).
 * `data/` (not shown here) was established as a symbolic link to an external folder. Data for these analyses contain PHI and are not shareable.
-* `results/` contains a knitted HTML file of **results**, complete with formatting and visualizations (`wcm_code_sample_052020.html`).
+* `results/` contains a knitted HTML file of **results**, complete with formatting and visualizations (`wcm_code_sample_052020.html`). This folder also contains a knitted RMarkdown file (`wcm_code_sample_052020.md`), which allows viewing from GitHub.
 * `source/` contains will contain bare scripts (in this case, just one function sourced by the code file).
 
 Project modified from structure created using the [projectr](https://github.com/jeff-goldsmith/projectr) package.

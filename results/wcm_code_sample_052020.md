@@ -24,47 +24,14 @@ The starting dataset was provided by researchers at the National Birth Defects P
 
 <!-- #### 1.0  Importing Packages -->
 
-```{r setup, include=FALSE}
 
-# Data import and management
-library(tidyverse)
-
-# Table creation
-library(knitr)
-library(kableExtra)
-
-# Custom function
-source(
-  here::here("source", "interaction_model.R")
-)
-
-library(conflicted)
-conflict_prefer("filter", "dplyr")
-
-# Global options for knitting document
-knitr::opts_chunk$set(
-  fig.width = 9,
-  fig.asp = .6,
-  out.width = "90%",
-  dpi = 600  # Makes up for lack of anti-aliasing on Windows RStudio
-)
-
-# Global ggplot theme options
-theme_set(
-  theme_light() +
-  theme(
-    legend.position = "bottom"
-  )
-) 
-
-```
 
 ### 1.1.  Data Import and Cleaning
 
 Here, I'll import the data used by my mentor to publish her 2019 study (Stingone et al. 2019, *Environ. Epidem.*). 
 
-```{r data_import}
 
+```r
 # NOTE: ./data/ in this .Rproj is set up as a symbolic link to an unshared external data folder (data contain PHI)
 
 ny_data =  # Starting dataset from NY NBDPS center - import from SAS format
@@ -72,7 +39,6 @@ ny_data =  # Starting dataset from NY NBDPS center - import from SAS format
     here::here("data", "ny_data_2019.sas7bdat")  # here::here() allows relative filepaths
   ) %>%   
   janitor::clean_names()
-
 ```
 
 ### 1.2.  Data Tidying and Manipulation
@@ -81,8 +47,8 @@ Most of this code is subsetting the original dataset of 6,000 columns into a mor
 
 The data contain PHI, so I also modified my study data for these purposes by permuting categorical counfounding variables and adding random noise to the numeric PM~2.5~ measurement. This was requested by NBDPS in sharing these analyses.
 
-```{r tidy_manipulate}
 
+```r
 # Creating exposure data for each ID: sum of >90th percentile heat days 15-56 (weeks 3-8 of pregnancy)
 heat_days =
   ny_data %>% 
@@ -156,7 +122,6 @@ study_data_mod =
   mutate(
     pm25mean = pm25mean + rnorm(length(pm25mean), 0, 1)  # Adds Gaussian random noise to PM2.5 variable
   )
-  
 ```
 
 ## 2.  Exploration
@@ -167,8 +132,8 @@ This section contains exploratory visualization of my primary variables: an outc
 
 First, I'll create a table of case counts by CHD subtype.
 
-```{r explore_chd}
 
+```r
 # Character vector of CHD variables
 chd = c("lvoto", "rvoto_noebstein", "conotruncal", "septal", "vsdpm", "asd2")
 
@@ -205,15 +170,59 @@ study_data_mod %>%
     general = "<i>Note:</i> CHD categories not mutually exclusive.",
     escape = FALSE
   )
-  
 ```
+
+<table class="table table-striped table-hover table-condensed" style="width: auto !important; margin-left: auto; margin-right: auto;">
+<caption><font size="2.6" style="color:black"><b>Table 1. Case-count by congenital heart defect (CHD)</b><br>National Birth Defects Prevention Study (NBDPS)</font></caption>
+ <thead>
+  <tr>
+   <th style="text-align:left;"> CHD </th>
+   <th style="text-align:right;"> n </th>
+  </tr>
+ </thead>
+<tbody>
+  <tr>
+   <td style="text-align:left;width: 22em; "> LVOTO </td>
+   <td style="text-align:right;"> 588 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;width: 22em; "> RVOTO (excl. Ebstein) </td>
+   <td style="text-align:right;"> 447 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;width: 22em; "> Conotruncal </td>
+   <td style="text-align:right;"> 639 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;width: 22em; "> Septal </td>
+   <td style="text-align:right;"> 958 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;width: 22em; "> VSDpm </td>
+   <td style="text-align:right;"> 407 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;width: 22em; "> ASD-II </td>
+   <td style="text-align:right;"> 420 </td>
+  </tr>
+  <tr>
+   <td style="text-align:left;width: 22em; "> Control </td>
+   <td style="text-align:right;"> 4225 </td>
+  </tr>
+</tbody>
+<tfoot>
+<tr><td style="padding: 0; border: 0;" colspan="100%"><span style="font-style: italic;"> </span></td></tr>
+<tr><td style="padding: 0; border: 0;" colspan="100%">
+<sup></sup> <i>Note:</i> CHD categories not mutually exclusive.</td></tr>
+</tfoot>
+</table>
 
 ### 2.2.  Exposure 1: PM~2.5~
 
 Next, I'll look at the distribution of our air pollution exposure measurement, mean maternal PM~2.5~ exposure over weeks 3-8 of pregnancy.
 
-```{r explore_pm2.5}
 
+```r
 # Density plot of PM2.5 distribution across sample
 study_data_mod %>% 
   ggplot(aes(x = pm25mean)) +
@@ -232,15 +241,16 @@ study_data_mod %>%
   ylab(
     "Density\n"
   )
-
 ```
+
+<img src="wcm_code_sample_052020_files/figure-html/explore_pm2.5-1.png" width="90%" />
 
 ### 2.3.  Exposure 2: Extreme heat
 
 Finally, I'll look at distributions for three different operationalizations of maternal extreme heat exposure during weeks 3-8 of pregnancy: number of heatwaves (3+ days of at least 90^th^ percentile maximum temperature); longest heatwave; and total number of days above the 90^th^ percentile for maximum temperature.
 
-```{r explore_heat, warning=FALSE}
 
+```r
 # pivot_longer to make all three heat measures in one column
 study_data_mod %>% 
   mutate(heat_days_90 = as.factor(heat_days_90)) %>% 
@@ -284,15 +294,16 @@ study_data_mod %>%
                "#D76B1F",
                "#FFB563") 
   )
-  
 ```
+
+<img src="wcm_code_sample_052020_files/figure-html/explore_heat-1.png" width="90%" />
 
 ## 3.  Analysis
 
 Finally, I'll perform one of the intermediate steps from my overall analyses: iteratively fitting a prespecified multivariable logistic regression model across different CHD outcomes. Here, I'll estimate log-odds of each CHD outcome with predictor variables `pm25mean`, `heat_days_90`, the cross-product of these two exposures, and predetermined confounding covariates (`mean_dp`, `age_cat`, `race_cat`, and `educ_cat`).
 
-```{r int_models}
 
+```r
 # interaction_model is custom function that allows estimation of specific logistic model for different CHD outcomes
   # See ./source/interaction_model.R
 
@@ -308,15 +319,26 @@ models_df =
   )
 
 models_df
+```
 
+```
+## # A tibble: 6 x 3
+##   chd             int_model data                
+##   <chr>           <list>    <list>              
+## 1 lvoto           <glm>     <df[,7] [4,621 x 7]>
+## 2 rvoto_noebstein <glm>     <df[,7] [4,480 x 7]>
+## 3 conotruncal     <glm>     <df[,7] [4,672 x 7]>
+## 4 septal          <glm>     <df[,7] [4,991 x 7]>
+## 5 vsdpm           <glm>     <df[,7] [4,440 x 7]>
+## 6 asd2            <glm>     <df[,7] [4,453 x 7]>
 ```
 
 The result of this iteration, as seen above, is a data frame with a row for each CHD outcome and columns containing data and fitted models. This structure is convenient for iterative visualization and further analyses.
 
 For illustration purposes, we can tidy the results and look at the coefficient estimates from the model for `septal` defects.
 
-```{r}
 
+```r
 models_df %>% 
   mutate(
     tidy_results = map(int_model, broom::tidy)  # Mutating all model output into tidy format
@@ -324,6 +346,22 @@ models_df %>%
   filter(chd == "septal") %>%  # Pulling results for septal defects only
   select(tidy_results) %>% 
   unnest(cols = c(tidy_results))  # Unnesting list column of results
+```
 
+```
+## # A tibble: 11 x 5
+##    term                  estimate std.error statistic      p.value
+##    <chr>                    <dbl>     <dbl>     <dbl>        <dbl>
+##  1 (Intercept)           -0.777     0.139      -5.60  0.0000000209
+##  2 pm25mean              -0.0438    0.00890    -4.93  0.000000836 
+##  3 heat_days_90          -0.109     0.0275     -3.96  0.0000755   
+##  4 mean_dp                0.00165   0.00267     0.617 0.537       
+##  5 age_cat1               0.0390    0.111       0.352 0.725       
+##  6 age_cat2               0.0902    0.115       0.785 0.433       
+##  7 race_cat1             -0.0294    0.115      -0.256 0.798       
+##  8 race_cat2              0.0573    0.0855      0.670 0.503       
+##  9 race_cat3              0.0323    0.139       0.234 0.815       
+## 10 educ_cat1              0.0605    0.0733      0.826 0.409       
+## 11 pm25mean:heat_days_90  0.00478   0.00191     2.51  0.0122
 ```
 
