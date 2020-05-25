@@ -2,100 +2,91 @@
 title: "Code Sample: Programmer Analyst I Role, WCM"
 author: "Will Simmons"
 date: "May 2020"
-output: html_document
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+    css: !expr here::here("styles.css")  # Keep styles.css in home directory but code in ./code
 editor_options: 
   chunk_output_type: console
 ---
 
-### 0.  Description
+## 0.  Description
 
-#### 0.1  Purpose
+This document contains sample code for Programmer Analyst I role with Weill Cornell Medicine's Division of Biostatistics (Department of Population Health Sciences). 
 
-Sample code for Programmer Analyst I role with Weill Cornell Medicine's Division of Biostatistics (Department of Population Health Sciences). 
+The purpose of these analyses is to produce exploratory, descriptive, and analytic results related to the joint effects of maternal exposure to PM~2.5~ (fine particulate matter) and extreme heat events (EHE) on risk of certain offspring congenital heart defects (CHDs).
 
-#### 0.2  Background on code
+The starting dataset was provided by researchers at the National Birth Defects Prevention Study's New York center. It includes CHD cases and controls with estimated dates of delivery from 1997-2007. It also includes PM~2.5~ and temperature data, matched to each mother by geocode, as well as observed covariates. There	are a number of extraneous variables in the dataset.
 
-This is modified code from an in-preparation manuscript. I am solely responsible for the creation of this code and analytic method, but other researchers on this study - other members of the National Birth Defects Prevention Study (NBDPS) - are as follows: Stingone J, Luben T, Sheridan S, Langlois P, Shaw G, Reefhuis J, Romitti P, Feldkamp M, Nembhard W, Browne M, Lin S. Organizational consent from NBDPS/CDC has been granted to use this code in its modified state.
+## 1.  Setup
 
-The purpose of these analyses is to produce exploratory, descriptive, and analytic results related to the joint effects of maternal exposure to PM2.5 (fine particulate matter) and extreme heat events (EHE) on risk of certain offspring congenital heart defects (CHDs).
-
-#### 0.3  Background on starting dataset
-
-The starting dataset was provided by researchers at the New York NBDPS site. It includes CHD cases and controls with estimated dates of delivery from 1997-2007. It also includes PM2.5 and temperature data, matched to each mother by geocode. There	are a number of extraneous variables in the dataset.
-
-### 1.  Setup
-
-<!-- #### 1.0  Package Import -->
+<!-- #### 1.0  Importing Packages -->
 
 ```{r setup, include=FALSE}
 
 # Data import and management
 library(tidyverse)
 
-# # Table creation
-# library(knitr)
-# library(kableExtra)
-# library(gtsummary)
-# library(gt)
-# library(Hmisc)
-# 
-# # Models and output management
-# library(broom)
-# library(mgcv)
-# library(purrr)
-# library(patchwork)
-# library(readr)
-# 
-# # Conflicting functions - setting default packages to use
-# library(conflicted)
-# conflict_prefer("html", "gt")
-# conflict_prefer("summarize", "dplyr")
-# conflict_prefer("filter", "dplyr")
+# Table creation
+library(knitr)
+library(kableExtra)
 
-# Disable scientific notation for output
-# options(scipen = 999)
-
-# Global options for knitting document and ggplot options
-knitr::opts_chunk$set(
-  fig.width = 8,
-  fig.asp = .6,
-  out.width = "90%"
+# Custom function
+source(
+  here::here("source", "interaction_model.R")
 )
 
+library(conflicted)
+conflict_prefer("filter", "dplyr")
+
+# Global options for knitting document
+knitr::opts_chunk$set(
+  fig.width = 9,
+  fig.asp = .6,
+  out.width = "90%",
+  dpi = 600  # Makes up for lack of anti-aliasing on Windows RStudio
+)
+
+# Global ggplot theme options
 theme_set(
-  theme_bw() +
-  theme(legend.position = "bottom")
+  theme_light() +
+  theme(
+    legend.position = "bottom"
+  )
 ) 
 
 ```
 
-#### 1.1  Data Import and Cleaning
+### 1.1.  Data Import and Cleaning
 
-Here, I'll import the data used by my mentor to publish her 2019 study. 
+Here, I'll import the data used by my mentor to publish her 2019 study (Stingone et al. 2019, *Environ. Epidem.*). 
 
 ```{r data_import}
 
 # NOTE: ./data/ in this .Rproj is set up as a symbolic link to an unshared external data folder (data contain PHI)
 
-ny_data = 
-  haven::read_sas("./data/ny_data_2019.sas7bdat") %>%   # Starting dataset from NY NBDPS center - import from SAS format
+ny_data =  # Starting dataset from NY NBDPS center - import from SAS format
+  haven::read_sas(
+    here::here("data", "ny_data_2019.sas7bdat")  # here::here() allows relative filepaths
+  ) %>%   
   janitor::clean_names()
 
 ```
 
-#### 1.2  Data Tidying and Manipulation
+### 1.2.  Data Tidying and Manipulation
 
-Most of this code is subsetting the original dataset of 6,000 columns into a more manageable dataset of the 16 variables I'll use for analysis. I had to wrangle the original code in creating one of my exposure variables, though. Since the original dataset contained separate indicator variables representing extreme heat on each day of a mother's pregnancy, I used `pivot_longer()` and `summarize()` to create a sum of heat days experienced by a mother during the cardiac critical period of her pregnancy (weeks 3-8, or days 15-56).
+Most of this code is subsetting the original dataset of 6,000 columns into a more manageable dataset of the `ncol(study_data)` variables I'll use for analysis. In the first section of code, I used `pivot_longer()` and `summarize()` to create an index of heat days experienced by each mother during the cardiac critical period of pregnancy (weeks 3-8, or days 15-56).
 
-The data contain PHI, so I'll modify my study data for these purposes by permuting categorical counfounding variables and adding random noise to the numeric PM2.5 measurement. This was requested by NBDPS and will further protect participants.
+The data contain PHI, so I also modified my study data for these purposes by permuting categorical counfounding variables and adding random noise to the numeric PM~2.5~ measurement. This was requested by NBDPS in sharing these analyses.
 
-```{r data_import}
+```{r tidy_manipulate}
 
 # Creating exposure data for each ID: sum of >90th percentile heat days 15-56 (weeks 3-8 of pregnancy)
 heat_days =
   ny_data %>% 
   select(
-    matches("^tmax_p90_"),  # Selects all relevant tmax indicator variables and puts at front - these cols were mixed in with UATmax
+    matches("^tmax_p90_"),  # Selects all relevant tmax indicator variables, puts them together + in order
     everything()
   ) %>%
   pivot_longer(
@@ -109,16 +100,19 @@ heat_days =
     heat_days_90 = sum(heat_90_ind)  
   ) %>% 
   ungroup() %>% 
-  mutate_all(
-    ~as.factor(.)  # Coercing ID and heat days into factors 
-  )
+  # mutate_all(
+  #   ~as.factor(.)  # Coercing ID and heat days into factors 
+  # )
+  mutate(id = as.factor(id))
 
 # Creating study dataset - selecting relevant columns from the original 6000 in full data
 study_data =  
   ny_data %>% 
   select(
     id,
-    pm25mean,  # PM2.5 exposure variable already created         
+    pm25mean,  # PM2.5 exposure variable already created  
+    longest_heatwave = heat90pconsec,
+    heatwave_90 = heatwave90pn,
     lvoto, rvoto_noebstein, conotruncal, vsdpm, asd2, septal,  # CHDs of interest
     mean_dp,  # Mean dewpoint (degrees C)
     gender = c_gender,  # 1 [male], 2 [female], -3 [not stated], -4 [missing]
@@ -148,15 +142,15 @@ study_data =
     heat_days,
     by = "id"
   ) %>% 
-  select(id, heat_days_90, everything())  # Reordering to put exposures first
+  select(id, pm25mean, heat_days_90, everything())  # Reordering to put exposures first
 
-# Adding random noise to confounding variables and PM2.5 (requested by NBDPS)
+# Adding permuting confounding variables and adding random noise to PM2.5 (requested by NBDPS)
 set.seed(1)
 study_data_mod =
   study_data %>% 
   mutate_at(
-    vars(11:16),
-    funs(. <- sample(., replace = FALSE))  # Replaces columns 10:16 with random samples without replacement (use <-)
+    vars(13:18),
+    list(~sample(., replace = FALSE))  # Replaces columns 10:16 with random samples without replacement
   ) %>%
   mutate(
     pm25mean = pm25mean + rnorm(length(pm25mean), 0, 1)  # Adds Gaussian random noise to PM2.5 variable
@@ -164,6 +158,171 @@ study_data_mod =
   
 ```
 
-### 2.  Exploration
+## 2.  Exploration
 
+This section contains exploratory visualization of my primary variables: an outcome (congenital heart defect case-status) and two primary exposures (maternal PM~2.5~ and extreme heat exposure). 
+
+### 2.1.  Outcome: congenital heart defects (CHDs)
+
+First, I'll create a table of case counts by CHD subtype.
+
+```{r explore_chd}
+
+# Character vector of CHD variables
+chd = c("lvoto", "rvoto_noebstein", "conotruncal", "septal", "vsdpm", "asd2")
+
+# Character vector of CHD labels
+chd_labs = c("LVOTO", "RVOTO (excl. Ebstein)", "Conotruncal", "Septal", "VSDpm", "ASD-II", "Control")
+
+study_data_mod %>% 
+  select(all_of(chd)) %>% 
+  mutate_all(as.character) %>%  # Converting factor value to actual numeric value 
+  mutate_all(as.numeric) %>% 
+  mutate(
+    case = rowSums(., na.rm = TRUE),  # Summing all columns for each row - if > 0, case
+    control = case_when(case >  0 ~ 0,
+                        case == 0 ~ 1)
+  ) %>% 
+  select(-case) %>% 
+  colSums(na.rm = TRUE) %>%   # Difficult to use dplyr solution - CHDs not mutually exclusive, so sum using colSums()
+  as_tibble() %>% 
+  mutate(
+    CHD = chd_labs
+  ) %>% 
+  select(CHD, n = value) %>% 
+  
+  # Creating table
+  kable(
+    caption = "<font size=2.6 style='color:black'><b>Table 1. Case-count by congenital heart defect (CHD)</b><br>National Birth Defects Prevention Study (NBDPS)</font>",
+    escape = FALSE
+  ) %>% 
+  kable_styling(bootstrap_options = c("striped","hover","condensed"),
+                full_width = FALSE) %>% 
+  column_spec(1, width = "22em") %>% 
+  footnote(
+    general_title = " ",
+    general = "<i>Note:</i> CHD categories not mutually exclusive.",
+    escape = FALSE
+  )
+  
+```
+
+### 2.2.  Exposure 1: PM~2.5~
+
+Next, I'll look at the distribution of our air pollution exposure measurement, mean maternal PM~2.5~ exposure over weeks 3-8 of pregnancy.
+
+```{r explore_pm2.5}
+
+# Density plot of PM2.5 distribution across sample
+study_data_mod %>% 
+  ggplot(aes(x = pm25mean)) +
+  geom_density(
+    fill = "#636363",
+    color = "#636364",
+    alpha = 0.8
+  ) +
+  ggtitle(  # Use expression(...) or expression(paste("...")) to display sub/superscript in ggplot titles and labels
+    expression(paste("Figure 1: Maternal ", PM[2.5], " exposure distribution, weeks 3-8 of pregnancy")),
+    subtitle = "National Birth Defects Prevention Study (NBDPS), 1999-2007"
+  ) +
+  xlab(
+    expression(Average~weekly~PM[2.5]~exposure~(μg/m^3))
+  ) +
+  ylab(
+    "Density\n"
+  )
+
+```
+
+### 2.3.  Exposure 2: Extreme heat
+
+Finally, I'll look at distributions for three different operationalizations of maternal extreme heat exposure during weeks 3-8 of pregnancy: number of heatwaves (3+ days of at least 90^th^ percentile maximum temperature); longest heatwave; and total number of days above the 90^th^ percentile for maximum temperature.
+
+```{r explore_heat, warning=FALSE}
+
+# pivot_longer to make all three heat measures in one column
+study_data_mod %>% 
+  mutate(heat_days_90 = as.factor(heat_days_90)) %>% 
+  pivot_longer(
+    heat_days_90:heatwave_90,
+    names_to = "heat_meas",
+    values_to = "value"
+  ) %>% 
+  mutate(
+    heat_meas = 
+      factor(heat_meas,
+             labels = c("90th percentile hot days", "Heatwaves (n)*", "Longest heatwave (days)**")),
+    heat_meas = fct_relevel(heat_meas, "Heatwaves (n)*", "Longest heatwave (days)**"),  # Reordering
+    value = as.numeric(as.character(value))  # 
+  ) %>%
+  ggplot(aes(x = value, fill = heat_meas)) +
+  geom_histogram(
+    stat = "count"
+  ) +
+  labs(
+    x = " ",
+    y = "Count (mothers)\n",
+    title = "Figure 2. Distributions of maternal heat exposure measures, weeks 3-8 of pregnancy",
+    subtitle = "National Birth Defects Prevention Study (NBDPS), 1999-2007",
+    caption = "*Heatwave defined as 3+ days above 90th percentile maximum temperature.
+               **Minimum heatwave length = 3 days."
+  ) +
+  facet_grid(
+    . ~ heat_meas,
+    scales = "free_x",
+    switch = "x"
+  ) +
+  theme(
+    strip.placement = "outside",
+    strip.background = element_blank(),
+    strip.text = element_text(color = "black"),
+    legend.position = "none"
+  ) +
+  scale_fill_manual(
+    values = c("#B31B1B", 
+               "#D76B1F",
+               "#FFB563") 
+  )
+  
+```
+
+## 3.  Analysis
+
+Finally, I'll perform one of the intermediate steps from my overall analyses: iteratively fitting a prespecified multivariable logistic regression model across different CHD outcomes. Here, I'll estimate log-odds of each CHD outcome with predictor variables `pm25mean`, `heat_days_90`, the cross-product of these two exposures, and predetermined confounding covariates (`mean_dp`, `age_cat`, `race_cat`, and `educ_cat`).
+
+```{r int_models}
+
+# interaction_model is custom function that allows estimation of specific logistic model for different CHD outcomes
+  # See ./source/interaction_model.R
+
+# Use purrr::map() within pipeline to (1) iteratively fit models with different outcomes and (2) extract each model's data
+models_df =
+  chd %>% 
+  as_tibble_col(column_name = "chd") %>%
+  mutate(
+    int_model = map(chd, interaction_model),
+    data = map(int_model,
+               ~ .x$model  # .$model yields data used for model)
+    )
+  )
+
+models_df
+
+```
+
+The result of this iteration, as seen above, is a data frame with a row for each CHD outcome and columns containing data and fitted models. This structure is convenient for iterative visualization and further analyses.
+
+For illustration purposes, we can tidy the results and look at the coefficient estimates from the model for `septal` defects.
+
+```{r}
+
+models_df %>% 
+  mutate(
+    tidy_results = map(int_model, broom::tidy)  # Mutating all model output into tidy format
+  ) %>% 
+  filter(chd == "septal") %>%  # Pulling results for septal defects only
+  select(tidy_results) %>% 
+  unnest(cols = c(tidy_results))  # Unnesting list column of results
+
+```
 
