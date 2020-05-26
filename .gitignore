@@ -6,7 +6,8 @@
 
 ## data directories and files
 data
-analysis/*_cache/
+code/*_cache/
+results/*_cache/
 .RData
 .Ruserdata
 
